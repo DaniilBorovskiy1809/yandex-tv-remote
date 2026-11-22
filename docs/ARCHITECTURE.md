@@ -82,7 +82,7 @@ val irAvailable: Boolean
 | Метод | Что делает |
 |---|---|
 | `onBluetoothPermissionChanged(granted)` | Запускает/останавливает HID-контроллер |
-| `setMode(mode)` | Переключает Bluetooth/IR, останавливает ненужный контроллер |
+| `selectMode(mode)` | Переключает Bluetooth/IR, останавливает ненужный контроллер |
 | `onDiscoverableResult(granted)` | Обновляет состояние после системного диалога видимости |
 | `retryBluetooth()` | Перезапускает HID-контроллер |
 | `send(key)` | Отправляет HID-отчёт или ИК-команду |

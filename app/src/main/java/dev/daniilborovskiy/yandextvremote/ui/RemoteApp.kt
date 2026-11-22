@@ -91,7 +91,7 @@ fun RemoteApp(viewModel: RemoteViewModel) {
         permissionGranted = permissionGranted,
         bluetoothEnabled = bluetoothEnabled,
         message = viewModel.lastMessage,
-        onModeChange = viewModel::setMode,
+        onModeChange = viewModel::selectMode,
         onSend = viewModel::send,
         onMakeDiscoverable = {
             val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {

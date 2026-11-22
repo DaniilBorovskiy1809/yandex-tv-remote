@@ -45,7 +45,7 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun setMode(newMode: RemoteMode) {
+    fun selectMode(newMode: RemoteMode) {
         if (mode == newMode) return
         mode = newMode
         lastMessage = null
