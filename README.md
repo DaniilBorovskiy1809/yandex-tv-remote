@@ -107,7 +107,8 @@
 | Lifecycle | `2.11.1` |
 | Core KTX | `1.19.1` |
 | Coroutines | `1.11.0` |
-| compileSdk / targetSdk | `37` |
+| compileSdk | `37.1` |
+| targetSdk | `37` |
 | minSdk | `28` |
 | Java target | `17` |
 | JDK для сборки | `21` |
@@ -121,22 +122,40 @@
 Любой push в `main` запускает `.github/workflows/build.yml`:
 
 - JDK 21 (Temurin);
-- Android SDK platform 37 и build-tools 36.0.0;
+- Android SDK platform 37.1 и build-tools 37.0.0;
 - Gradle 9.9.2 через wrapper;
-- `./gradlew assembleDebug`;
-- APK загружается артефактом.
+- кэш Gradle-зависимостей и Android SDK между запусками;
+- `./gradlew testDebugUnitTest assembleDebug`;
+- APK и отчёт тестов загружаются артефактами;
+- новый push в ту же ветку отменяет предыдущий запуск.
 
 ### Локально
 
-Нужны JDK 21 и Android SDK с `platforms;android-37` и `build-tools;36.0.0`.
+Нужны JDK 21 и Android SDK с `platforms;android-37.1` и `build-tools;37.0.0`.
 
 ```bash
-./gradlew assembleDebug
+./gradlew testDebugUnitTest assembleDebug
 ```
 
 APK появится в `app/build/outputs/apk/debug/app-debug.apk`.
 
 > В репозитории нет локального Android SDK. Эталонная сборка — GitHub Actions.
+
+### Тесты
+
+JVM-тесты не требуют телефона или телевизора. Для запуска через Gradle нужен Android SDK:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+Что проверяется:
+
+- NEC-кадр: длина, leader, порядок бит, адрес, команда и инверсная команда;
+- HID-отчёты: клавиатура, consumer little-endian, release-отчёты;
+- `RemoteKey`: наличие HID-команды, покрытие и диапазон ИК-кодов, диапазоны usage, повторяемые кнопки.
+
+CI запускает тесты и сборку APK, а HTML-отчёт `unit-test-report` загружает даже при падении.
 
 ---
 
@@ -148,13 +167,20 @@ app/src/main/java/dev/daniilborovskiy/yandextvremote/
 ├── RemoteViewModel.kt
 ├── remote/
 │   ├── HidRemoteController.kt   # Bluetooth HID Device
+│   ├── HidReports.kt            # чистые HID-отчёты
 │   ├── IrRemoteController.kt    # ConsumerIrManager + NEC
+│   ├── NecEncoder.kt            # чистый NEC-кодировщик
 │   └── RemoteKey.kt             # таблица кнопок: HID usage + IR code
 └── ui/
     ├── RemoteApp.kt             # разрешения, Bluetooth lifecycle
     ├── RemoteScreen.kt          # экран, карточки, пульт
     ├── RemoteButton.kt          # кнопка с ripple, haptic, repeat
     └── theme/                   # M3 Expressive тема
+
+app/src/test/java/.../remote/
+├── NecEncoderTest.kt
+├── HidReportsTest.kt
+└── RemoteKeyTest.kt
 ```
 
 Документация:

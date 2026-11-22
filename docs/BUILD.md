@@ -13,8 +13,10 @@
 | Lifecycle | `2.11.1` | |
 | Core KTX | `1.19.1` | |
 | Coroutines | `1.11.0` | |
-| compileSdk / targetSdk | `37` | |
+| compileSdk | `37.1` | Compose 1.13.0 requires 37.1+ |
+| targetSdk | `37` | |
 | minSdk | `28` | `BluetoothHidDevice` |
+| build-tools | `37.0.0` | |
 | Java source/target | `17` | |
 | JDK для CI | `21` | Temurin |
 
@@ -55,12 +57,25 @@ buildscript {
 
 1. `actions/checkout@v4`.
 2. `actions/setup-java@v4` с Temurin JDK 21.
-3. Установка Android SDK:
+3. Кэш Android SDK:
+   - `actions/cache@v4` кэширует `platforms/android-37.1` и `build-tools/37.0.0`;
+   - при попадании в кэш `sdkmanager` не запускается.
+4. Установка Android SDK (только при cache miss):
    - используется предустановленный SDK на runner;
-   - `sdkmanager --install "platforms;android-37" "build-tools;36.0.0"`.
-4. `gradle/actions/setup-gradle@v4`.
-5. `./gradlew --stacktrace assembleDebug`.
-6. `actions/upload-artifact@v4` с `app/build/outputs/apk/debug/*.apk`.
+   - `sdkmanager --install "platforms;android-37.1" "build-tools;37.0.0"`.
+5. `gradle/actions/setup-gradle@v4`:
+   - кэширует `~/.gradle/caches`;
+   - кэширует wrapper distribution;
+   - кэширует build-cache.
+6. `./gradlew --stacktrace testDebugUnitTest assembleDebug`.
+7. `actions/upload-artifact@v4`:
+   - APK: `app/build/outputs/apk/debug/*.apk`;
+   - HTML-отчёт тестов: `app/build/reports/tests/testDebugUnitTest`.
+
+Дополнительно:
+
+- `concurrency.cancel-in-progress: true` отменяет предыдущий запуск при новом push в ту же ветку;
+- `paths-ignore` не запускает сборку на изменения только в `**.md`, `docs/**` и `LICENSE`.
 
 Почему не `android-actions/setup-android@v3`: в runner с cmdline-tools 16.0 action пытается установить пакет `tools`, которого больше нет, и падает. Поэтому SDK ставится напрямую через `sdkmanager` из предустановленного каталога.
 
@@ -80,14 +95,14 @@ Actions → Build APK → последний run → Artifacts → yandex-tv-rem
 
 - JDK 21;
 - Android SDK;
-- `platforms;android-37`;
-- `build-tools;36.0.0`;
+- `platforms;android-37.1`;
+- `build-tools;37.0.0`;
 - переменная `ANDROID_HOME` или `local.properties` с `sdk.dir`.
 
 Команды:
 
 ```bash
-./gradlew assembleDebug
+./gradlew testDebugUnitTest assembleDebug
 ```
 
 APK:
@@ -125,12 +140,20 @@ Wrapper jar проверен по SHA-256:
 
 CI использует JDK 21. Локально нужен JDK 21, не 17.
 
-### `compileSdk 37 not found`
+### `compileSdk 37.1 not found`
 
 Установите:
 
 ```bash
-sdkmanager --install "platforms;android-37"
+sdkmanager --install "platforms;android-37.1"
+```
+
+В AGP 9 минорная версия задаётся явно:
+
+```kotlin
+compileSdk {
+    version = release(37) { minorApiLevel = 1 }
+}
 ```
 
 ### `Failed to find package 'tools'`
@@ -147,7 +170,7 @@ sdkmanager --install "platforms;android-37"
 
 ### `MaterialExpressiveTheme` не найден
 
-Нужна Material3 `1.5.0` и `compileSdk 37`. Версия Material3 управляется Compose BOM `2026.11.01`.
+Нужна Material3 `1.5.0` и `compileSdk 37.1`. Версия Material3 управляется Compose BOM `2026.11.01`.
 
 ## 7. Воспроизводимость
 

@@ -62,6 +62,7 @@ fun RemoteKeyButton(
     val scope = rememberCoroutineScope()
     val interactionSource = remember { MutableInteractionSource() }
     val label = stringResource(key.labelRes)
+    val sendKey = onClick
 
     var pressed by remember { mutableStateOf(false) }
     var activePress by remember { mutableStateOf<PressInteraction.Press?>(null) }
@@ -105,15 +106,15 @@ fun RemoteKeyButton(
 
                     val press = PressInteraction.Press(down.position)
                     activePress = press
-                    interactionSource.emit(press)
+                    scope.launch { interactionSource.emit(press) }
 
                     repeatJob?.cancel()
                     repeatJob = scope.launch {
-                        onClick(key)
+                        sendKey(key)
                         if (key.repeatable) {
                             delay(REPEAT_DELAY_MS)
                             while (isActive) {
-                                onClick(key)
+                                sendKey(key)
                                 delay(REPEAT_INTERVAL_MS)
                             }
                         }
@@ -124,7 +125,9 @@ fun RemoteKeyButton(
                     repeatJob?.cancel()
                     repeatJob = null
                     pressed = false
-                    activePress?.let { interactionSource.emit(PressInteraction.Release(it)) }
+                    activePress?.let { press ->
+                        scope.launch { interactionSource.emit(PressInteraction.Release(press)) }
+                    }
                     activePress = null
                 }
             }
@@ -133,7 +136,7 @@ fun RemoteKeyButton(
                 role = Role.Button
                 if (enabled) {
                     onClick(label = label) {
-                        onClick(key)
+                        sendKey(key)
                         true
                     }
                 } else {
@@ -154,10 +157,12 @@ fun RemoteKeyButton(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
+            val text = key.text
+            val icon = key.icon
             when {
-                key.text != null -> Text(
-                    text = key.text,
-                    style = if (key.text.length > 1) {
+                text != null -> Text(
+                    text = text,
+                    style = if (text.length > 1) {
                         MaterialTheme.typography.titleLarge
                     } else {
                         MaterialTheme.typography.headlineSmall
@@ -165,8 +170,8 @@ fun RemoteKeyButton(
                     fontWeight = FontWeight.SemiBold,
                 )
 
-                key.icon != null -> Icon(
-                    imageVector = key.icon,
+                icon != null -> Icon(
+                    imageVector = icon,
                     contentDescription = label,
                     modifier = Modifier.size(size * 0.42f),
                 )

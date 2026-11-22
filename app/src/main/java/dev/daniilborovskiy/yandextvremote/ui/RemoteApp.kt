@@ -1,6 +1,7 @@
 package dev.daniilborovskiy.yandextvremote.ui
 
 import android.Manifest
+import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -56,6 +57,14 @@ fun RemoteApp(viewModel: RemoteViewModel) {
         viewModel.onBluetoothPermissionChanged(permissionGranted)
     }
 
+    val discoverableLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        // ACTION_REQUEST_DISCOVERABLE returns the granted duration (for
+        // example 120) on success and RESULT_CANCELED when declined.
+        viewModel.onDiscoverableResult(result.resultCode != Activity.RESULT_CANCELED)
+    }
+
     LaunchedEffect(Unit) {
         if (requiredPermissions.isNotEmpty() && !permissionGranted) {
             permissionLauncher.launch(requiredPermissions)
@@ -65,8 +74,12 @@ fun RemoteApp(viewModel: RemoteViewModel) {
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        val granted = requiredPermissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+        permissionGranted = granted
         bluetoothEnabled = isBluetoothEnabled(adapter)
-        viewModel.onBluetoothPermissionChanged(permissionGranted)
+        viewModel.onBluetoothPermissionChanged(granted)
     }
 
     val hidState by viewModel.hidState.collectAsStateWithLifecycle()
@@ -80,7 +93,12 @@ fun RemoteApp(viewModel: RemoteViewModel) {
         message = viewModel.lastMessage,
         onModeChange = viewModel::setMode,
         onSend = viewModel::send,
-        onMakeDiscoverable = viewModel::makeDiscoverable,
+        onMakeDiscoverable = {
+            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+                putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, DISCOVERABLE_SECONDS)
+            }
+            discoverableLauncher.launch(intent)
+        },
         onRequestPermissions = { permissionLauncher.launch(requiredPermissions) },
         onEnableBluetooth = {
             enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
@@ -89,6 +107,8 @@ fun RemoteApp(viewModel: RemoteViewModel) {
         onMessageShown = viewModel::clearMessage,
     )
 }
+
+private const val DISCOVERABLE_SECONDS = 120
 
 private fun bluetoothPermissions(): Array<String> =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

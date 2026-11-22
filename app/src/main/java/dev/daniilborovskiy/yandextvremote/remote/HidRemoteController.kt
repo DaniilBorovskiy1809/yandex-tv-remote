@@ -54,6 +54,14 @@ class HidRemoteController(context: Context) {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             if (profile != BluetoothProfile.HID_DEVICE) return
             val hid = proxy as? BluetoothHidDevice ?: return
+            if (!started) {
+                try {
+                    adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, hid)
+                } catch (_: Exception) {
+                    // Proxy was already released.
+                }
+                return
+            }
             hidDevice = hid
 
             val sdp = BluetoothHidDeviceAppSdpSettings(
@@ -66,7 +74,7 @@ class HidRemoteController(context: Context) {
 
             val accepted = try {
                 hid.registerApp(sdp, null, null, appContext.mainExecutor, callback)
-            } catch (_: SecurityException) {
+            } catch (_: Exception) {
                 false
             }
 
@@ -89,19 +97,21 @@ class HidRemoteController(context: Context) {
 
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
+            if (!started) {
+                this@HidRemoteController.registered = false
+                return
+            }
             this@HidRemoteController.registered = registered
             if (!registered) {
-                if (started) {
-                    _state.value = HidState.Error(appContext.getString(R.string.msg_hid_register_failed))
-                }
+                _state.value = HidState.Error(appContext.getString(R.string.msg_hid_register_failed))
                 return
             }
 
             _state.value = HidState.Ready
-            makeDiscoverable()
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
+            if (!started) return
             when (state) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     connectedDevice = device
@@ -114,39 +124,40 @@ class HidRemoteController(context: Context) {
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     if (connectedDevice == device) connectedDevice = null
-                    if (started) _state.value = HidState.Ready
+                    if (started && _state.value !is HidState.Error) _state.value = HidState.Ready
                 }
 
                 BluetoothProfile.STATE_DISCONNECTING -> {
-                    if (started) _state.value = HidState.Ready
+                    if (connectedDevice == device) connectedDevice = null
+                    if (started && _state.value !is HidState.Error) _state.value = HidState.Ready
                 }
             }
         }
 
-        override fun onGetReport(device: BluetoothDevice, type: Int, id: Int, bufferSize: Int) {
+        override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
             val hid = hidDevice ?: return
             try {
-                hid.sendReport(device, id, ByteArray(bufferSize.coerceAtLeast(0)))
-            } catch (_: SecurityException) {
+                hid.replyReport(device, type, id, ByteArray(bufferSize.coerceAtLeast(0)))
+            } catch (_: Exception) {
                 // The host will retry or disconnect; no user action needed here.
             }
         }
 
-        override fun onSetReport(device: BluetoothDevice, type: Int, id: Int, data: ByteArray) {
+        override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
             // The TV may send keyboard LED output reports. We do not have LEDs.
         }
 
-        override fun onSetProtocol(device: BluetoothDevice, protocol: Int) {
+        override fun onSetProtocol(device: BluetoothDevice, protocol: Byte) {
             // Boot/report protocol is irrelevant for our short reports.
         }
 
-        override fun onInterruptData(device: BluetoothDevice, reportId: Int, data: ByteArray) {
+        override fun onInterruptData(device: BluetoothDevice, reportId: Byte, data: ByteArray) {
             // No interrupt channel is used by this app.
         }
 
         override fun onVirtualCableUnplug(device: BluetoothDevice) {
             connectedDevice = null
-            if (started) _state.value = HidState.Ready
+            if (started && _state.value !is HidState.Error) _state.value = HidState.Ready
         }
     }
 
@@ -165,16 +176,11 @@ class HidRemoteController(context: Context) {
 
         val enabled = try {
             bluetoothAdapter.isEnabled
-        } catch (_: SecurityException) {
+        } catch (_: Exception) {
             false
         }
         if (!enabled) {
             _state.value = HidState.BluetoothOff
-            return
-        }
-
-        if (!bluetoothAdapter.isProfileSupported(BluetoothProfile.HID_DEVICE)) {
-            _state.value = HidState.Unsupported
             return
         }
 
@@ -183,13 +189,13 @@ class HidRemoteController(context: Context) {
 
         val requested = try {
             bluetoothAdapter.getProfileProxy(appContext, serviceListener, BluetoothProfile.HID_DEVICE)
-        } catch (_: SecurityException) {
+        } catch (_: Exception) {
             false
         }
 
         if (!requested) {
             started = false
-            _state.value = HidState.Error(appContext.getString(R.string.msg_hid_register_failed))
+            _state.value = HidState.Unsupported
         }
     }
 
@@ -210,25 +216,27 @@ class HidRemoteController(context: Context) {
         _state.value = HidState.Idle
     }
 
-    fun makeDiscoverable() {
-        if (!started || connectedDevice != null) return
-        if (!hasAdvertisePermission()) {
-            _state.value = HidState.PermissionRequired
+    /**
+     * Called after the system discoverable-request dialog returns.
+     *
+     * Android no longer exposes `BluetoothAdapter.setScanMode` in the public
+     * SDK, so discoverability is requested from the UI with
+     * [BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE]. This method only updates
+     * the state and starts the local timeout.
+     */
+    fun onDiscoverableResult(granted: Boolean) {
+        if (!started) return
+        if (connectedDevice != null) return
+        if (!granted) {
+            discoverableJob?.cancel()
+            discoverableJob = null
+            if (_state.value is HidState.Discoverable) {
+                _state.value = HidState.Ready
+            }
             return
         }
-
-        val bluetoothAdapter = adapter ?: return
-        val accepted = try {
-            bluetoothAdapter.setScanMode(
-                BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE,
-                DISCOVERABLE_SECONDS,
-            )
-        } catch (_: SecurityException) {
-            false
-        }
-
-        if (!accepted) {
-            _state.value = HidState.Error(appContext.getString(R.string.msg_discoverable_failed))
+        if (!hasAdvertisePermission()) {
+            _state.value = HidState.PermissionRequired
             return
         }
 
@@ -242,10 +250,14 @@ class HidRemoteController(context: Context) {
         }
     }
 
-    fun send(key: RemoteKey) {
-        val command = key.hid ?: return
-        val device = connectedDevice ?: return
-        val hid = hidDevice ?: return
+    fun send(key: RemoteKey, onFailure: (() -> Unit)? = null) {
+        val command = key.hid
+        val device = connectedDevice
+        val hid = hidDevice
+        if (command == null || device == null || hid == null) {
+            onFailure?.invoke()
+            return
+        }
 
         scope.launch {
             sendMutex.withLock {
@@ -254,40 +266,39 @@ class HidRemoteController(context: Context) {
                         is HidCommand.Consumer -> {
                             val down = hid.sendReport(
                                 device,
-                                REPORT_ID_CONSUMER,
-                                command.usage.toLittleEndian(),
+                                HidReports.CONSUMER_REPORT_ID,
+                                HidReports.consumer(command.usage),
                             )
                             delay(KEY_HOLD_MS)
-                            val up = hid.sendReport(device, REPORT_ID_CONSUMER, CONSUMER_RELEASE)
+                            val up = hid.sendReport(
+                                device,
+                                HidReports.CONSUMER_REPORT_ID,
+                                HidReports.CONSUMER_RELEASE,
+                            )
                             down && up
                         }
 
                         is HidCommand.Keyboard -> {
                             val down = hid.sendReport(
                                 device,
-                                REPORT_ID_KEYBOARD,
-                                byteArrayOf(
-                                    0,
-                                    0,
-                                    command.usage.toByte(),
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                    0,
-                                ),
+                                HidReports.KEYBOARD_REPORT_ID,
+                                HidReports.keyboard(command.usage),
                             )
                             delay(KEY_HOLD_MS)
-                            val up = hid.sendReport(device, REPORT_ID_KEYBOARD, KEYBOARD_RELEASE)
+                            val up = hid.sendReport(
+                                device,
+                                HidReports.KEYBOARD_REPORT_ID,
+                                HidReports.KEYBOARD_RELEASE,
+                            )
                             down && up
                         }
                     }
-                } catch (_: SecurityException) {
+                } catch (_: Exception) {
                     false
                 }
 
                 if (!success) {
-                    _state.value = HidState.Error(appContext.getString(R.string.msg_hid_send_failed))
+                    onFailure?.invoke()
                 } else if (_state.value is HidState.Error) {
                     _state.value = HidState.Connected(deviceName(device))
                 }
@@ -301,13 +312,13 @@ class HidRemoteController(context: Context) {
             if (registered) {
                 try {
                     hid.unregisterApp()
-                } catch (_: SecurityException) {
+                } catch (_: Exception) {
                     // Profile proxy may already be gone.
                 }
             }
             try {
                 adapter?.closeProfileProxy(BluetoothProfile.HID_DEVICE, hid)
-            } catch (_: SecurityException) {
+            } catch (_: Exception) {
                 // Nothing else to release.
             }
         }
@@ -317,8 +328,12 @@ class HidRemoteController(context: Context) {
 
     private fun deviceName(device: BluetoothDevice): String = try {
         device.name ?: device.address
-    } catch (_: SecurityException) {
-        device.address
+    } catch (_: Exception) {
+        try {
+            device.address
+        } catch (_: Exception) {
+            "Bluetooth device"
+        }
     }
 
     private fun hasConnectPermission(): Boolean =
@@ -335,23 +350,13 @@ class HidRemoteController(context: Context) {
                 Manifest.permission.BLUETOOTH_ADVERTISE,
             ) == PackageManager.PERMISSION_GRANTED
 
-    private fun Int.toLittleEndian(): ByteArray = byteArrayOf(
-        (this and 0xff).toByte(),
-        ((this shr 8) and 0xff).toByte(),
-    )
-
     companion object {
         private const val APP_NAME = "Yandex TV Remote"
         private const val APP_DESCRIPTION = "Bluetooth HID remote for Yandex TV"
         private const val APP_PROVIDER = "Daniil Borovskiy"
-        private const val HID_SUBCLASS: Byte = 0xC0.toByte()
-        private const val REPORT_ID_KEYBOARD = 1
-        private const val REPORT_ID_CONSUMER = 2
+        private const val HID_SUBCLASS: Byte = -64 // 0xC0, keyboard + consumer control
         private const val KEY_HOLD_MS = 30L
         private const val DISCOVERABLE_SECONDS = 120
-
-        private val CONSUMER_RELEASE = byteArrayOf(0, 0)
-        private val KEYBOARD_RELEASE = ByteArray(8)
 
         /**
          * Composite HID descriptor:

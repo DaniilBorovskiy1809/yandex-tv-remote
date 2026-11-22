@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.calculateBottomPadding
-import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -328,6 +326,8 @@ private fun StatusCard(
                         Text(stringResource(R.string.action_allow))
                     }
                 }
+
+                hidState is HidState.Unsupported -> Unit
 
                 !bluetoothEnabled || hidState is HidState.BluetoothOff -> {
                     Button(

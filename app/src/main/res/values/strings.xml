@@ -11,7 +11,6 @@
     <string name="mode_ir_unavailable">ИК-передатчик не найден на этом телефоне.</string>
     <string name="mode_ir_limited">В ИК-режиме доступны только базовые кнопки: питание, громкость, каналы, навигация и цифры.</string>
 
-    <string name="status_title">Состояние</string>
     <string name="status_idle">Не запущено</string>
     <string name="status_bluetooth_off">Bluetooth выключен</string>
     <string name="status_unsupported">Телефон не поддерживает Bluetooth HID Device</string>
@@ -58,9 +57,7 @@
     <string name="msg_ir_unsupported_key">Эта кнопка не поддерживается ИК-протоколом.</string>
     <string name="msg_ir_send_failed">Не удалось отправить ИК-сигнал.</string>
     <string name="msg_hid_send_failed">Не удалось отправить HID-отчёт.</string>
-    <string name="msg_discoverable_failed">Не удалось включить режим видимости.</string>
     <string name="msg_hid_register_failed">Не удалось зарегистрировать HID-профиль.</string>
-    <string name="msg_bluetooth_permission">Без разрешения Bluetooth приложение не сможет создать HID-пульт.</string>
 
     <string name="key_power">Питание</string>
     <string name="key_tv">ТВ</string>

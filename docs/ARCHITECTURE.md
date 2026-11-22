@@ -83,7 +83,7 @@ val irAvailable: Boolean
 |---|---|
 | `onBluetoothPermissionChanged(granted)` | Запускает/останавливает HID-контроллер |
 | `setMode(mode)` | Переключает Bluetooth/IR, останавливает ненужный контроллер |
-| `makeDiscoverable()` | Включает видимость телефона |
+| `onDiscoverableResult(granted)` | Обновляет состояние после системного диалога видимости |
 | `retryBluetooth()` | Перезапускает HID-контроллер |
 | `send(key)` | Отправляет HID-отчёт или ИК-команду |
 | `clearMessage()` | Убирает snackbar |
@@ -96,10 +96,9 @@ val irAvailable: Boolean
 
 - получение `BluetoothAdapter` через `BluetoothManager`;
 - проверку разрешений (`BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE`);
-- проверку `isProfileSupported(HID_DEVICE)`;
-- `getProfileProxy`;
+- `getProfileProxy` (если профиль не поддерживается, proxy не создаётся);
 - `registerApp` с SDP и дескриптором;
-- `makeDiscoverable` через `setScanMode`;
+- `onDiscoverableResult` после `ACTION_REQUEST_DISCOVERABLE`;
 - `sendReport` для consumer/keyboard;
 - обработку `Callback` (подключение, отключение, get/set report);
 - `unregisterApp` и `closeProfileProxy`.
@@ -131,9 +130,11 @@ start()
   ├─ HID Device не поддерживается → Unsupported
   └─ getProfileProxy → Registering
         └─ onServiceConnected → registerApp
-              └─ onAppStatusChanged(true) → Ready → makeDiscoverable()
-                    └─ setScanMode → Discoverable
-                          └─ onConnectionStateChanged(CONNECTED) → Connected(name)
+              └─ onAppStatusChanged(true) → Ready
+                    └─ пользователь нажимает «Сделать видимым»
+                          └─ ACTION_REQUEST_DISCOVERABLE → onDiscoverableResult(true)
+                                └─ Discoverable
+                                      └─ onConnectionStateChanged(CONNECTED) → Connected(name)
 ```
 
 ### 2.4. IR-контроллер
@@ -142,10 +143,10 @@ start()
 
 - получает `ConsumerIrManager`;
 - проверяет `hasIrEmitter()`;
-- строит NEC-паттерн из адреса и команды;
+- вызывает `NecEncoder.encode(command)`;
 - вызывает `transmit(38000, pattern)`.
 
-Кодирование NEC вынесено в чистую функцию `necPattern(address, command)`. Её легко протестировать без Android-устройства.
+Кодирование NEC вынесено в чистый объект `NecEncoder`. Его легко протестировать без Android-устройства. HID-отчёты также вынесены в `HidReports`, поэтому оба протокола покрыты JVM-тестами.
 
 ---
 
@@ -157,8 +158,7 @@ start()
 |---|---|
 | `BLUETOOTH`, `BLUETOOTH_ADMIN` (`maxSdk 30`) | Старые Android |
 | `BLUETOOTH_CONNECT` | Подключение, регистрация HID, имя устройства |
-| `BLUETOOTH_ADVERTISE` | `setScanMode` для видимости |
-| `BLUETOOTH_SCAN` | Объявлено на будущее; в MVP не используется |
+| `BLUETOOTH_ADVERTISE` | `ACTION_REQUEST_DISCOVERABLE` для видимости |
 | `TRANSMIT_IR` | ИК-передача (normal permission) |
 
 На Android 12+ `BLUETOOTH_CONNECT` и `BLUETOOTH_ADVERTISE` запрашиваются через `RequestMultiplePermissions`. На Android 9–11 они не нужны.

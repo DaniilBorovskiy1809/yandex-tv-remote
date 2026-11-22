@@ -6,11 +6,11 @@ plugins {
 android {
     namespace = "dev.daniilborovskiy.yandextvremote"
     compileSdk {
-        // API 37 is published as android-37.0 (minor API level 0).
-        // Without the explicit minor level AGP looks for the legacy
-        // "android-37" target, which does not exist on current SDK runners.
-        version = release(37) { minorApiLevel = 0 }
+        // API 37 is published as android-37.1 on current SDK runners.
+        // Compose 1.13.0 (BOM 2026.11.01) requires compileSdk 37.1+.
+        version = release(37) { minorApiLevel = 1 }
     }
+    buildToolsVersion = "37.0.0"
 
     defaultConfig {
         applicationId = "dev.daniilborovskiy.yandextvremote"
@@ -63,4 +63,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(libs.junit)
 }

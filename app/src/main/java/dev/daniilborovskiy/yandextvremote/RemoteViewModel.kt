@@ -56,8 +56,8 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun makeDiscoverable() {
-        hid.makeDiscoverable()
+    fun onDiscoverableResult(granted: Boolean) {
+        hid.onDiscoverableResult(granted)
     }
 
     fun retryBluetooth() {
@@ -73,7 +73,9 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
                     lastMessage = getApplication<Application>().getString(R.string.msg_connect_first)
                     return
                 }
-                hid.send(key)
+                hid.send(key) {
+                    lastMessage = getApplication<Application>().getString(R.string.msg_hid_send_failed)
+                }
             }
 
             RemoteMode.INFRARED -> {

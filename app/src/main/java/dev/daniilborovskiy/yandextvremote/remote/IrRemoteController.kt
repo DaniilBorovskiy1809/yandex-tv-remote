@@ -31,45 +31,10 @@ class IrRemoteController(context: Context) {
         if (!isAvailable) return false
 
         return try {
-            ir.transmit(CARRIER_HZ, necPattern(NEC_ADDRESS, command))
+            ir.transmit(NecEncoder.CARRIER_HZ, NecEncoder.encode(command))
             true
         } catch (_: Exception) {
             false
         }
-    }
-
-    private fun necPattern(address: Int, command: Int): IntArray {
-        val bytes = intArrayOf(
-            address and 0xff,
-            (address shr 8) and 0xff,
-            command and 0xff,
-            command.inv() and 0xff,
-        )
-
-        val pattern = IntArray(2 + 32 * 2 + 1)
-        pattern[0] = NEC_LEADER_MARK_US
-        pattern[1] = NEC_LEADER_SPACE_US
-
-        var index = 2
-        for (byteIndex in 0 until 4) {
-            val value = bytes[byteIndex]
-            for (bitIndex in 0 until 8) {
-                val bit = (value shr bitIndex) and 1
-                pattern[index++] = NEC_BIT_MARK_US
-                pattern[index++] = if (bit == 1) NEC_ONE_SPACE_US else NEC_ZERO_SPACE_US
-            }
-        }
-        pattern[index] = NEC_BIT_MARK_US
-        return pattern
-    }
-
-    companion object {
-        private const val CARRIER_HZ = 38_000
-        private const val NEC_ADDRESS = 0x20df
-        private const val NEC_LEADER_MARK_US = 9_000
-        private const val NEC_LEADER_SPACE_US = 4_500
-        private const val NEC_BIT_MARK_US = 560
-        private const val NEC_ZERO_SPACE_US = 560
-        private const val NEC_ONE_SPACE_US = 1_690
     }
 }

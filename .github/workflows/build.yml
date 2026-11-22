@@ -3,15 +3,29 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
   workflow_dispatch:
+
+# A new push to the same branch cancels the previous build instead of
+# leaving a queue of stale runs behind.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Assemble debug APK
+    name: Test and assemble debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -28,21 +42,43 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      - name: Cache Android SDK packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk/platforms/android-37.1
+            /usr/local/lib/android/sdk/build-tools/37.0.0
+          key: android-sdk-37.1-bt-37.0.0-v1
+
       - name: Install SDK platform and build tools
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: |
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
           echo "Using $SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --install "platforms;android-37.0" "build-tools;37.0.0"
+          if [ ! -d "$ANDROID_HOME/platforms/android-37.1" ] || [ ! -d "$ANDROID_HOME/build-tools/37.0.0" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" --install "platforms;android-37.1" "build-tools;37.0.0"
+          else
+            echo "Android SDK packages restored from cache"
+          fi
 
+      # setup-gradle caches ~/.gradle/caches, the wrapper distribution and
+      # build-cache entries, so dependency resolution is warm on later runs.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
-      - name: Build debug APK
-        run: ./gradlew --stacktrace assembleDebug
+      - name: Run unit tests and build debug APK
+        run: ./gradlew --stacktrace testDebugUnitTest assembleDebug
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
