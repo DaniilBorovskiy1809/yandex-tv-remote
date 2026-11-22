@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Яндекс ТВ Пульт</string>
+    <string name="app_subtitle">Bluetooth HID и ИК-пульт для Яндекс ТВ</string>
+
+    <string name="mode_title">Режим подключения</string>
+    <string name="mode_bluetooth">Bluetooth</string>
+    <string name="mode_ir">ИК-пульт</string>
+    <string name="mode_bluetooth_description">Телефон работает как Bluetooth HID-клавиатура. Телевизор видит его как обычный пульт.</string>
+    <string name="mode_ir_description">Телефон отправляет ИК-команды NEC. Нужен встроенный ИК-передатчик.</string>
+    <string name="mode_ir_unavailable">ИК-передатчик не найден на этом телефоне.</string>
+    <string name="mode_ir_limited">В ИК-режиме доступны только базовые кнопки: питание, громкость, каналы, навигация и цифры.</string>
+
+    <string name="status_title">Состояние</string>
+    <string name="status_idle">Не запущено</string>
+    <string name="status_bluetooth_off">Bluetooth выключен</string>
+    <string name="status_unsupported">Телефон не поддерживает Bluetooth HID Device</string>
+    <string name="status_permission">Нужны разрешения Bluetooth</string>
+    <string name="status_registering">Регистрация HID-профиля…</string>
+    <string name="status_ready">Готов к подключению</string>
+    <string name="status_discoverable">Телефон видим для телевизора 2 минуты</string>
+    <string name="status_connecting">Подключение: %1$s</string>
+    <string name="status_connected">Подключено: %1$s</string>
+    <string name="status_error">Ошибка: %1$s</string>
+    <string name="status_ir_ready">ИК-передатчик готов</string>
+    <string name="status_ir_unavailable">ИК-передатчик недоступен</string>
+
+    <string name="action_allow">Разрешить Bluetooth</string>
+    <string name="action_enable_bluetooth">Включить Bluetooth</string>
+    <string name="action_make_discoverable">Сделать видимым</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_test_ir">Проверить ИК</string>
+    <string name="action_help">Как подключить</string>
+    <string name="action_hide_help">Скрыть инструкцию</string>
+
+    <string name="help_title">Подключение</string>
+    <string name="help_step_1">Включите Bluetooth на телефоне.</string>
+    <string name="help_step_2">Нажмите «Сделать видимым».</string>
+    <string name="help_step_3">На телевизоре откройте Настройки → Пульты и аксессуары → Добавить аксессуар.</string>
+    <string name="help_step_4">Выберите телефон в списке и подтвердите сопряжение.</string>
+    <string name="help_step_5">После подключения кнопки пульта станут активными.</string>
+    <string name="help_note">Для первого подключения может понадобиться штатный ИК-пульт или панель телевизора: приложение не может удалённо открыть экран сопряжения.</string>
+    <string name="ir_help">Наведите телефон на телевизор и нажмите кнопку. ИК-режим экспериментальный: в прошивке активна таблица RCA, но NEC-таблица загружена как fallback.</string>
+    <string name="ir_step_1">Наведите верхний торец телефона на приёмник телевизора.</string>
+    <string name="ir_step_2">Подойдите на 1–3 метра и уберите препятствия.</string>
+    <string name="ir_step_3">Нажмите «Проверить ИК» или любую доступную кнопку.</string>
+
+    <string name="remote_title">Пульт</string>
+    <string name="remote_subtitle_hid">Bluetooth HID • все кнопки</string>
+    <string name="remote_subtitle_ir">ИК NEC • только базовые кнопки</string>
+    <string name="section_navigation">Навигация</string>
+    <string name="section_media">Медиа</string>
+    <string name="section_digits">Цифры</string>
+    <string name="volume">Громкость</string>
+    <string name="channel">Канал</string>
+
+    <string name="msg_connect_first">Сначала подключите телефон к телевизору по Bluetooth.</string>
+    <string name="msg_ir_unsupported_key">Эта кнопка не поддерживается ИК-протоколом.</string>
+    <string name="msg_ir_send_failed">Не удалось отправить ИК-сигнал.</string>
+    <string name="msg_hid_send_failed">Не удалось отправить HID-отчёт.</string>
+    <string name="msg_discoverable_failed">Не удалось включить режим видимости.</string>
+    <string name="msg_hid_register_failed">Не удалось зарегистрировать HID-профиль.</string>
+    <string name="msg_bluetooth_permission">Без разрешения Bluetooth приложение не сможет создать HID-пульт.</string>
+
+    <string name="key_power">Питание</string>
+    <string name="key_tv">ТВ</string>
+    <string name="key_settings">Настройки</string>
+    <string name="key_voice">Алиса</string>
+    <string name="key_up">Вверх</string>
+    <string name="key_down">Вниз</string>
+    <string name="key_left">Влево</string>
+    <string name="key_right">Вправо</string>
+    <string name="key_ok">ОК</string>
+    <string name="key_back">Назад</string>
+    <string name="key_home">Домой</string>
+    <string name="key_menu">Меню</string>
+    <string name="key_volume_up">Громкость +</string>
+    <string name="key_volume_down">Громкость −</string>
+    <string name="key_mute">Без звука</string>
+    <string name="key_channel_up">Канал +</string>
+    <string name="key_channel_down">Канал −</string>
+    <string name="key_play_pause">Пауза / воспроизведение</string>
+    <string name="key_previous">Предыдущий</string>
+    <string name="key_next">Следующий</string>
+    <string name="key_rewind">Перемотка назад</string>
+    <string name="key_forward">Перемотка вперёд</string>
+    <string name="key_stop">Стоп</string>
+    <string name="key_record">Запись</string>
+    <string name="key_guide">Телегид</string>
+    <string name="key_search">Поиск / инфо</string>
+    <string name="key_digit_0">0</string>
+    <string name="key_digit_1">1</string>
+    <string name="key_digit_2">2</string>
+    <string name="key_digit_3">3</string>
+    <string name="key_digit_4">4</string>
+    <string name="key_digit_5">5</string>
+    <string name="key_digit_6">6</string>
+    <string name="key_digit_7">7</string>
+    <string name="key_digit_8">8</string>
+    <string name="key_digit_9">9</string>
+</resources>

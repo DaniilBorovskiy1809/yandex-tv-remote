@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="yandex_red">#FC3F1D</color>
+    <color name="ic_launcher_background">#FC3F1D</color>
+    <color name="app_background_light">#FFF8F6</color>
+    <color name="app_background_dark">#1A1110</color>
+</resources>
