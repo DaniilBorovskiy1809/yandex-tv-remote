@@ -5,7 +5,12 @@ plugins {
 
 android {
     namespace = "dev.daniilborovskiy.yandextvremote"
-    compileSdk = 37
+    compileSdk {
+        // API 37 is published as android-37.0 (minor API level 0).
+        // Without the explicit minor level AGP looks for the legacy
+        // "android-37" target, which does not exist on current SDK runners.
+        version = release(37) { minorApiLevel = 0 }
+    }
 
     defaultConfig {
         applicationId = "dev.daniilborovskiy.yandextvremote"
