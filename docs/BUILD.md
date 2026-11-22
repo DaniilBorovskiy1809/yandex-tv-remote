@@ -53,41 +53,66 @@ buildscript {
 
 Файл: `.github/workflows/build.yml`.
 
+Триггер — **только тег** `v*`. Push в `main`, ветки и pull request'ы сборку не запускают. Это сделано специально, чтобы каждый коммит не тратил минуты Actions и не плодил артефакты.
+
 Шаги:
 
-1. `actions/checkout@v4`.
-2. `actions/setup-java@v4` с Temurin JDK 21.
-3. Кэш Android SDK:
+1. `actions/checkout@v4` с полной историей.
+2. Проверка тега: допустим только `vX.Y.Z`; `versionName` берётся из тега, `versionCode` — из `GITHUB_RUN_NUMBER`.
+3. Восстановление release-keystore из секретов в `$RUNNER_TEMP/release.keystore` (права `600`).
+4. `actions/setup-java@v4` с Temurin JDK 21.
+5. Кэш Android SDK:
    - `actions/cache@v4` кэширует `platforms/android-37.1` и `build-tools/37.0.0`;
-   - при попадании в кэш `sdkmanager` не запускается.
-4. Установка Android SDK (только при cache miss):
+   - ключ кэша учитывает hash файла workflow.
+6. Установка Android SDK (только при cache miss):
    - используется предустановленный SDK на runner;
    - `sdkmanager --install "platforms;android-37.1" "build-tools;37.0.0"`.
-5. `gradle/actions/setup-gradle@v4`:
-   - кэширует `~/.gradle/caches`;
-   - кэширует wrapper distribution;
-   - кэширует build-cache.
-6. `./gradlew --stacktrace testDebugUnitTest assembleDebug`.
-7. `actions/upload-artifact@v4`:
-   - APK: `app/build/outputs/apk/debug/*.apk`;
-   - HTML-отчёт тестов: `app/build/reports/tests/testDebugUnitTest`.
+7. `gradle/actions/setup-gradle@v4`: кэш `~/.gradle/caches`, wrapper и build-cache.
+8. `./gradlew --no-daemon --stacktrace testDebugUnitTest assembleRelease` с переменными подписи.
+9. `apksigner verify --print-certs` — проверка, что APK действительно подписан.
+10. Переименование APK в `yandex-tv-remote-X.Y.Z.apk` и расчёт SHA-256.
+11. `gh release create` (или `gh release upload --clobber`) — публикация APK и SHA-256 в GitHub Releases.
 
 Дополнительно:
 
-- `concurrency.cancel-in-progress: true` отменяет предыдущий запуск при новом push в ту же ветку;
-- `paths-ignore` не запускает сборку на изменения только в `**.md`, `docs/**` и `LICENSE`.
+- `concurrency.cancel-in-progress: false` — уже начатая публикация релиза не отменяется;
+- отчёт JVM-тестов загружается даже при падении сборки;
+- APK дополнительно доступен как artifact запуска.
 
 Почему не `android-actions/setup-android@v3`: в runner с cmdline-tools 16.0 action пытается установить пакет `tools`, которого больше нет, и падает. Поэтому SDK ставится напрямую через `sdkmanager` из предустановленного каталога.
+
+### Секреты подписи
+
+В `Settings → Secrets and variables → Actions` репозитория должны быть:
+
+| Секрет | Значение |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | release-keystore (PKCS12/JKS) в base64 без переносов строк |
+| `ANDROID_KEYSTORE_PASSWORD` | пароль хранилища |
+| `ANDROID_KEY_ALIAS` | alias ключа |
+| `ANDROID_KEY_PASSWORD` | пароль ключа |
+
+Workflow падает с понятной ошибкой, если хотя бы один секрет отсутствует. Keystore не попадает в git и удаляется вместе с runner'ом.
+
+### Релиз
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Тег должен указывать на коммит, который уже есть в `main`. После успешного запуска появится релиз `v1.0.0` с файлами `yandex-tv-remote-1.0.0.apk` и `.sha256`.
 
 ### Артефакт
 
 После успешного запуска:
 
 ```text
-Actions → Build APK → последний run → Artifacts → yandex-tv-remote-debug
+Actions → Release APK → последний run → Artifacts → yandex-tv-remote-X.Y.Z
+Releases → vX.Y.Z → yandex-tv-remote-X.Y.Z.apk
 ```
 
-Внутри — `app-debug.apk`.
+Внутри артефакта — подписанный release APK и его SHA-256. Debug APK в релизы не загружается.
 
 ## 4. Локальная сборка
 
@@ -111,13 +136,39 @@ APK:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Для release:
+Для release нужен keystore. Можно задать переменные окружения:
 
 ```bash
-./gradlew assembleRelease
+export ANDROID_KEYSTORE_PATH=/absolute/path/to/release.jks
+export ANDROID_KEYSTORE_PASSWORD=...
+export ANDROID_KEY_ALIAS=yandextvremote
+export ANDROID_KEY_PASSWORD=...
+VERSION_NAME=1.0.0 VERSION_CODE=1 ./gradlew testDebugUnitTest assembleRelease
 ```
 
-Подпись release не настроена: нужен keystore и `signingConfigs`.
+Или создать `keystore.properties` в корне (файл в `.gitignore`):
+
+```properties
+storeFile=/absolute/path/to/release.jks
+storePassword=...
+keyAlias=yandextvremote
+keyPassword=...
+```
+
+Без keystore задача `assembleRelease` создаст неподписанный APK, а не релизный. Для публикации используйте только подписанный артефакт.
+
+APK:
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+Проверка подписи:
+
+```bash
+$ANDROID_HOME/build-tools/37.0.0/apksigner verify --print-certs \
+  app/build/outputs/apk/release/app-release.apk
+```
 
 ## 5. Wrapper
 

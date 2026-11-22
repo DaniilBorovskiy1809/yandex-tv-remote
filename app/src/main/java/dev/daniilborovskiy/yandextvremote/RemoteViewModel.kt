@@ -60,6 +60,11 @@ class RemoteViewModel(application: Application) : AndroidViewModel(application) 
         hid.onDiscoverableResult(granted)
     }
 
+    fun cancelDiscoverability() {
+        hid.cancelDiscoverable()
+        lastMessage = getApplication<Application>().getString(R.string.msg_discoverability_cancelled)
+    }
+
     fun retryBluetooth() {
         if (mode == RemoteMode.BLUETOOTH && bluetoothPermissionGranted) {
             hid.restart()

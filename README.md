@@ -1,6 +1,6 @@
 # Yandex TV Remote
 
-[![Build APK](https://github.com/DaniilBorovskiy1809/yandex-tv-remote/actions/workflows/build.yml/badge.svg)](https://github.com/DaniilBorovskiy1809/yandex-tv-remote/actions/workflows/build.yml)
+[![Release APK](https://github.com/DaniilBorovskiy1809/yandex-tv-remote/actions/workflows/build.yml/badge.svg)](https://github.com/DaniilBorovskiy1809/yandex-tv-remote/actions/workflows/build.yml)
 
 Пульт для телевизоров Яндекса на Android TV (прошивка `monet`, Amlogic `t5w`, Android TV 11) в виде Android-приложения на Kotlin, Jetpack Compose и Material 3 Expressive.
 
@@ -24,6 +24,7 @@
 - Цифровая клавиатура 0–9.
 - Повтор при удержании для D-pad, громкости, каналов и перемотки.
 - Выбор режима Bluetooth HID / ИК.
+- Кнопка «Сделать видимым» превращается в «Отмена»: видимость можно выключить, не дожидаясь двухминутного таймаута.
 - Инструкция по сопряжению и диагностика состояния.
 - Material 3 Expressive: `MaterialExpressiveTheme`, `MotionScheme.expressive()`, выразительные формы и анимации.
 - Светлая и тёмная темы.
@@ -60,10 +61,12 @@
 
 ### 1. Скачать APK
 
-1. Откройте вкладку **Actions** репозитория.
-2. Выберите успешный запуск **Build APK**.
-3. Скачайте артефакт **yandex-tv-remote-debug**.
-4. Установите `app-debug.apk` на телефон (разрешите установку из неизвестных источников).
+1. Откройте вкладку **Releases** репозитория.
+2. Выберите последний релиз `vX.Y.Z`.
+3. Скачайте `yandex-tv-remote-X.Y.Z.apk` (и `.sha256` для проверки).
+4. Установите APK на телефон (разрешите установку из неизвестных источников).
+
+APK подписан постоянным release-ключом. Debug-сборки в релизы не попадают.
 
 ### 2. Подключить телефон к телевизору
 
@@ -119,15 +122,36 @@
 
 ### GitHub Actions
 
-Любой push в `main` запускает `.github/workflows/build.yml`:
+Сборка запускается **только по тегу версии** `vX.Y.Z`. Обычные коммиты и pull request'ы ничего не собирают и не тратят минуты Actions.
 
-- JDK 21 (Temurin);
-- Android SDK platform 37.1 и build-tools 37.0.0;
-- Gradle 9.9.2 через wrapper;
-- кэш Gradle-зависимостей и Android SDK между запусками;
-- `./gradlew testDebugUnitTest assembleDebug`;
-- APK и отчёт тестов загружаются артефактами;
-- новый push в ту же ветку отменяет предыдущий запуск.
+Что делает workflow `.github/workflows/build.yml`:
+
+- проверяет, что тег имеет вид `vX.Y.Z`;
+- берёт `versionName` из тега, а `versionCode` — из номера запуска;
+- восстанавливает release-keystore из GitHub Actions secrets;
+- собирает **подписанный** release APK, а не debug;
+- проверяет подпись через `apksigner`;
+- публикует APK и SHA-256 в GitHub Releases;
+- запускает JVM-тесты и прикладывает их отчёт;
+- использует кэш Gradle, wrapper и Android SDK.
+
+Секреты репозитория:
+
+| Секрет | Назначение |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | release-keystore в base64 |
+| `ANDROID_KEYSTORE_PASSWORD` | пароль хранилища |
+| `ANDROID_KEY_ALIAS` | alias ключа |
+| `ANDROID_KEY_PASSWORD` | пароль ключа |
+
+### Как выпустить новую версию
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+После этого GitHub Actions соберёт подписанный APK и создаст релиз `v1.0.0`. Повторный push того же тега обновит файлы существующего релиза (`--clobber`).
 
 ### Локально
 
@@ -138,6 +162,21 @@
 ```
 
 APK появится в `app/build/outputs/apk/debug/app-debug.apk`.
+
+Для локальной подписанной release-сборки создайте `keystore.properties` в корне (файл в `.gitignore`):
+
+```properties
+storeFile=/absolute/path/to/release.jks
+storePassword=...
+keyAlias=yandextvremote
+keyPassword=...
+```
+
+Затем:
+
+```bash
+VERSION_NAME=1.0.0 VERSION_CODE=1 ./gradlew testDebugUnitTest assembleRelease
+```
 
 > В репозитории нет локального Android SDK. Эталонная сборка — GitHub Actions.
 

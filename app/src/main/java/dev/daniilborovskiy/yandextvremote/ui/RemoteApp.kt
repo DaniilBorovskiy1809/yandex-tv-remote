@@ -99,6 +99,7 @@ fun RemoteApp(viewModel: RemoteViewModel) {
             }
             discoverableLauncher.launch(intent)
         },
+        onCancelDiscoverable = viewModel::cancelDiscoverability,
         onRequestPermissions = { permissionLauncher.launch(requiredPermissions) },
         onEnableBluetooth = {
             enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))

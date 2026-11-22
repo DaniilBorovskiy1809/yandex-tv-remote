@@ -250,6 +250,23 @@ class HidRemoteController(context: Context) {
         }
     }
 
+    /**
+     * Best-effort cancel of the system discoverable window.
+     *
+     * Android has no public API to stop discoverability. The framework still
+     * exposes the hidden `BluetoothAdapter.setScanMode(int)` system method, so
+     * we try it via reflection. If the OEM blocks hidden APIs, the local state
+     * is still reset immediately and the system window expires by timeout.
+     */
+    fun cancelDiscoverable() {
+        discoverableJob?.cancel()
+        discoverableJob = null
+        stopSystemDiscoverability()
+        if (_state.value is HidState.Discoverable) {
+            _state.value = HidState.Ready
+        }
+    }
+
     fun send(key: RemoteKey, onFailure: (() -> Unit)? = null) {
         val command = key.hid
         val device = connectedDevice
@@ -324,6 +341,41 @@ class HidRemoteController(context: Context) {
         }
         hidDevice = null
         registered = false
+    }
+
+    private fun stopSystemDiscoverability() {
+        val bluetoothAdapter = adapter ?: return
+        if (!hasConnectPermission()) return
+
+        // First try the single-argument overload, then the duration variant.
+        if (trySetScanMode(bluetoothAdapter, withDuration = false)) return
+        trySetScanMode(bluetoothAdapter, withDuration = true)
+    }
+
+    private fun trySetScanMode(bluetoothAdapter: BluetoothAdapter, withDuration: Boolean): Boolean {
+        return try {
+            val method = if (withDuration) {
+                BluetoothAdapter::class.java.getMethod(
+                    "setScanMode",
+                    Int::class.javaPrimitiveType!!,
+                    Int::class.javaPrimitiveType!!,
+                )
+            } else {
+                BluetoothAdapter::class.java.getMethod(
+                    "setScanMode",
+                    Int::class.javaPrimitiveType!!,
+                )
+            }
+            if (withDuration) {
+                method.invoke(bluetoothAdapter, BluetoothAdapter.SCAN_MODE_CONNECTABLE, 0)
+            } else {
+                method.invoke(bluetoothAdapter, BluetoothAdapter.SCAN_MODE_CONNECTABLE)
+            }
+            true
+        } catch (_: Exception) {
+            // Hidden API or removed on this OEM build.
+            false
+        }
     }
 
     private fun deviceName(device: BluetoothDevice): String = try {

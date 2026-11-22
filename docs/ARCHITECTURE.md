@@ -84,6 +84,7 @@ val irAvailable: Boolean
 | `onBluetoothPermissionChanged(granted)` | Запускает/останавливает HID-контроллер |
 | `selectMode(mode)` | Переключает Bluetooth/IR, останавливает ненужный контроллер |
 | `onDiscoverableResult(granted)` | Обновляет состояние после системного диалога видимости |
+| `cancelDiscoverability()` | Досрочно выключает видимость и возвращает `Ready` |
 | `retryBluetooth()` | Перезапускает HID-контроллер |
 | `send(key)` | Отправляет HID-отчёт или ИК-команду |
 | `clearMessage()` | Убирает snackbar |
@@ -99,6 +100,7 @@ val irAvailable: Boolean
 - `getProfileProxy` (если профиль не поддерживается, proxy не создаётся);
 - `registerApp` с SDP и дескриптором;
 - `onDiscoverableResult` после `ACTION_REQUEST_DISCOVERABLE`;
+- `cancelDiscoverable`: сброс таймаута и best-effort вызов скрытого `setScanMode(SCAN_MODE_CONNECTABLE)` через reflection;
 - `sendReport` для consumer/keyboard;
 - обработку `Callback` (подключение, отключение, get/set report);
 - `unregisterApp` и `closeProfileProxy`.
@@ -134,6 +136,7 @@ start()
                     └─ пользователь нажимает «Сделать видимым»
                           └─ ACTION_REQUEST_DISCOVERABLE → onDiscoverableResult(true)
                                 └─ Discoverable
+                                      ├─ «Отмена» → cancelDiscoverable() → Ready
                                       └─ onConnectionStateChanged(CONNECTED) → Connected(name)
 ```
 

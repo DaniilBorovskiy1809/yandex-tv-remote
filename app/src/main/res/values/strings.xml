@@ -27,6 +27,7 @@
     <string name="action_allow">Разрешить Bluetooth</string>
     <string name="action_enable_bluetooth">Включить Bluetooth</string>
     <string name="action_make_discoverable">Сделать видимым</string>
+    <string name="action_cancel_discoverable">Отмена</string>
     <string name="action_retry">Повторить</string>
     <string name="action_test_ir">Проверить ИК</string>
     <string name="action_help">Как подключить</string>
@@ -58,6 +59,7 @@
     <string name="msg_ir_send_failed">Не удалось отправить ИК-сигнал.</string>
     <string name="msg_hid_send_failed">Не удалось отправить HID-отчёт.</string>
     <string name="msg_hid_register_failed">Не удалось зарегистрировать HID-профиль.</string>
+    <string name="msg_discoverability_cancelled">Видимость отключена</string>
 
     <string name="key_power">Питание</string>
     <string name="key_tv">ТВ</string>

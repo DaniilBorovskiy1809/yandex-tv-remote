@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.BluetoothSearching
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Refresh
@@ -37,7 +38,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -48,7 +48,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,7 +68,6 @@ import dev.daniilborovskiy.yandextvremote.RemoteMode
 import dev.daniilborovskiy.yandextvremote.remote.HidState
 import dev.daniilborovskiy.yandextvremote.remote.RemoteKey
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteScreen(
     mode: RemoteMode,
@@ -81,6 +79,7 @@ fun RemoteScreen(
     onModeChange: (RemoteMode) -> Unit,
     onSend: (RemoteKey) -> Unit,
     onMakeDiscoverable: () -> Unit,
+    onCancelDiscoverable: () -> Unit,
     onRequestPermissions: () -> Unit,
     onEnableBluetooth: () -> Unit,
     onRetry: () -> Unit,
@@ -111,27 +110,6 @@ fun RemoteScreen(
         Scaffold(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            topBar = {
-                LargeTopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.headlineMedium,
-                            )
-                            Text(
-                                text = stringResource(R.string.app_subtitle),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    ),
-                )
-            },
         ) { innerPadding ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -143,6 +121,12 @@ fun RemoteScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                // Заголовок — обычный элемент списка, а не TopAppBar: при
+                // прокрутке он уезжает вместе с контентом и не «плавает»
+                // поверх экрана.
+                item {
+                    ScreenHeader()
+                }
                 item {
                     StatusCard(
                         mode = mode,
@@ -151,6 +135,7 @@ fun RemoteScreen(
                         permissionGranted = permissionGranted,
                         bluetoothEnabled = bluetoothEnabled,
                         onMakeDiscoverable = onMakeDiscoverable,
+                        onCancelDiscoverable = onCancelDiscoverable,
                         onRequestPermissions = onRequestPermissions,
                         onEnableBluetooth = onEnableBluetooth,
                         onRetry = onRetry,
@@ -176,6 +161,22 @@ fun RemoteScreen(
 }
 
 @Composable
+private fun ScreenHeader() {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = stringResource(R.string.app_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun StatusCard(
     mode: RemoteMode,
     hidState: HidState,
@@ -183,6 +184,7 @@ private fun StatusCard(
     permissionGranted: Boolean,
     bluetoothEnabled: Boolean,
     onMakeDiscoverable: () -> Unit,
+    onCancelDiscoverable: () -> Unit,
     onRequestPermissions: () -> Unit,
     onEnableBluetooth: () -> Unit,
     onRetry: () -> Unit,
@@ -368,7 +370,7 @@ private fun StatusCard(
                     }
                 }
 
-                hidState is HidState.Ready || hidState is HidState.Discoverable -> {
+                hidState is HidState.Ready -> {
                     FilledTonalButton(
                         onClick = onMakeDiscoverable,
                         modifier = Modifier.fillMaxWidth(),
@@ -380,6 +382,21 @@ private fun StatusCard(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.action_make_discoverable))
+                    }
+                }
+
+                hidState is HidState.Discoverable -> {
+                    FilledTonalButton(
+                        onClick = onCancelDiscoverable,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.action_cancel_discoverable))
                     }
                 }
             }

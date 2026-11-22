@@ -1,40 +1,88 @@
-name: Build APK
+name: Release APK
 
+# Сборка запускается только по тегу версии vX.Y.Z.
+# Обычные коммиты и pull request'ы ничего не собирают.
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-  pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-  workflow_dispatch:
-
-# A new push to the same branch cancels the previous build instead of
-# leaving a queue of stale runs behind.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write
+
+# Не отменяем уже начатую публикацию релиза: повторный тег должен
+# дождаться завершения предыдущего запуска.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ANDROID_HOME: /usr/local/lib/android/sdk
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  BUILD_TOOLS_VERSION: '37.0.0'
 
 jobs:
-  build:
-    name: Test and assemble debug APK
+  release:
+    name: Signed release APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version tag
+        id: version
+        run: |
+          set -eu
+          TAG="${GITHUB_REF_NAME}"
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$TAG' is not a version tag; expected vX.Y.Z"
+            exit 1
+          fi
+
+          VERSION_NAME="${TAG#v}"
+          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          {
+            echo "VERSION_NAME=${VERSION_NAME}"
+            echo "VERSION_CODE=${VERSION_CODE}"
+          } >> "$GITHUB_ENV"
+          {
+            echo "version_name=${VERSION_NAME}"
+            echo "version_code=${VERSION_CODE}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building ${VERSION_NAME} (versionCode ${VERSION_CODE}) from ${TAG}"
+
+      - name: Restore release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -eu
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Repository secret ANDROID_KEYSTORE_BASE64 is missing"
+            exit 1
+          fi
+          if [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then
+            echo "::error::Repository secret ANDROID_KEYSTORE_PASSWORD is missing"
+            exit 1
+          fi
+          if [ -z "${ANDROID_KEY_ALIAS:-}" ]; then
+            echo "::error::Repository secret ANDROID_KEY_ALIAS is missing"
+            exit 1
+          fi
+          if [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "::error::Repository secret ANDROID_KEY_PASSWORD is missing"
+            exit 1
+          fi
+
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+          chmod 600 "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -48,10 +96,11 @@ jobs:
           path: |
             /usr/local/lib/android/sdk/platforms/android-37.1
             /usr/local/lib/android/sdk/build-tools/37.0.0
-          key: android-sdk-37.1-bt-37.0.0-v1
+          key: android-sdk-37.1-bt-37.0.0-${{ hashFiles('.github/workflows/build.yml') }}
 
       - name: Install SDK platform and build tools
         run: |
+          set -eu
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
           echo "Using $SDKMANAGER"
           if [ ! -d "$ANDROID_HOME/platforms/android-37.1" ] || [ ! -d "$ANDROID_HOME/build-tools/37.0.0" ]; then
@@ -61,15 +110,32 @@ jobs:
             echo "Android SDK packages restored from cache"
           fi
 
-      # setup-gradle caches ~/.gradle/caches, the wrapper distribution and
-      # build-cache entries, so dependency resolution is warm on later runs.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
 
-      - name: Run unit tests and build debug APK
-        run: ./gradlew --stacktrace testDebugUnitTest assembleDebug
+      - name: Test and build signed release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest assembleRelease
+
+      - name: Verify APK signature
+        run: |
+          set -eu
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner" verify \
+            --print-certs \
+            app/build/outputs/apk/release/app-release.apk
+
+      - name: Prepare release artifacts
+        run: |
+          set -eu
+          APK_NAME="yandex-tv-remote-${VERSION_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK_NAME"
+          sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          echo "Prepared $APK_NAME"
 
       - name: Upload unit test report
         if: always()
@@ -80,9 +146,35 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yandex-tv-remote-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: yandex-tv-remote-${{ steps.version.outputs.version_name }}
+          path: |
+            yandex-tv-remote-${{ steps.version.outputs.version_name }}.apk
+            yandex-tv-remote-${{ steps.version.outputs.version_name }}.apk.sha256
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          APK_NAME="yandex-tv-remote-${VERSION_NAME}.apk"
+          if gh release view "${GITHUB_REF_NAME}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" \
+              "$APK_NAME" "$APK_NAME.sha256" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Яндекс ТВ Пульт ${VERSION_NAME}" \
+              --notes "Автоматическая подписанная release-сборка.
+
+          - Версия: \`${VERSION_NAME}\`
+          - versionCode: \`${VERSION_CODE}\`
+          - Коммит: \`${GITHUB_SHA}\`
+
+          APK подписан постоянным release-ключом из GitHub Actions secrets." \
+              "$APK_NAME" "$APK_NAME.sha256"
+          fi
